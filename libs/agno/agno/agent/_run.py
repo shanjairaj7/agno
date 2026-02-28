@@ -549,9 +549,8 @@ def _run(
                         user_id=user_id,
                     )
 
-                # 8. Store media if enabled
-                if agent.store_media:
-                    store_media_util(run_response, model_response)
+                # 8. Store media in run output for the caller
+                store_media_util(run_response, model_response)
 
                 # 9. Convert the response to the structured format if needed
                 convert_response_to_structured_format(agent, run_response, run_context=run_context)
@@ -1628,9 +1627,8 @@ async def _arun(
                 # 11. Convert the response to the structured format if needed
                 convert_response_to_structured_format(agent, run_response, run_context=run_context)
 
-                # 12. Store media if enabled
-                if agent.store_media:
-                    store_media_util(run_response, model_response)
+                # 12. Store media in run output for the caller
+                store_media_util(run_response, model_response)
 
                 # 13. Execute post-hooks (after output is generated but before response is returned)
                 if agent.post_hooks is not None:
@@ -2932,9 +2930,8 @@ def _continue_run(
                 # 4. Convert the response to the structured format if needed
                 convert_response_to_structured_format(agent, run_response, run_context=run_context)
 
-                # 5. Store media if enabled
-                if agent.store_media:
-                    store_media_util(run_response, model_response)
+                # 5. Store media in run output for the caller
+                store_media_util(run_response, model_response)
 
                 # 6. Execute post-hooks
                 if agent.post_hooks is not None:
@@ -3675,9 +3672,8 @@ async def _acontinue_run(
                 # 10. Convert the response to the structured format if needed
                 convert_response_to_structured_format(agent, run_response, run_context=run_context)
 
-                # 11. Store media if enabled
-                if agent.store_media:
-                    store_media_util(run_response, model_response)
+                # 11. Store media in run output for the caller
+                store_media_util(run_response, model_response)
 
                 await araise_if_cancelled(run_response.run_id)  # type: ignore
 
@@ -4354,8 +4350,22 @@ def cleanup_and_store(
 ) -> None:
     from agno.agent import _session
 
+    # Save output media artifacts before scrubbing so they remain available to the caller.
+    # store_media=False should only prevent persistence, not remove media from the current RunOutput.
+    saved_images = run_response.images
+    saved_videos = run_response.videos
+    saved_audio = run_response.audio
+    saved_files = run_response.files
+
     # Scrub the stored run based on storage flags
     scrub_run_output_for_storage(agent, run_response)
+
+    # Also scrub output media artifacts when store_media is disabled
+    if not agent.store_media:
+        run_response.images = None
+        run_response.videos = None
+        run_response.audio = None
+        run_response.files = None
 
     # Stop the timer for the Run duration
     if run_response.metrics:
@@ -4391,6 +4401,12 @@ def cleanup_and_store(
     # Save session to memory
     _session.save_session(agent, session=session)
 
+    # Restore output media artifacts so the caller can access them
+    run_response.images = saved_images
+    run_response.videos = saved_videos
+    run_response.audio = saved_audio
+    run_response.files = saved_files
+
 
 async def acleanup_and_store(
     agent: Agent,
@@ -4401,8 +4417,22 @@ async def acleanup_and_store(
 ) -> None:
     from agno.agent import _session
 
+    # Save output media artifacts before scrubbing so they remain available to the caller.
+    # store_media=False should only prevent persistence, not remove media from the current RunOutput.
+    saved_images = run_response.images
+    saved_videos = run_response.videos
+    saved_audio = run_response.audio
+    saved_files = run_response.files
+
     # Scrub the stored run based on storage flags
     scrub_run_output_for_storage(agent, run_response)
+
+    # Also scrub output media artifacts when store_media is disabled
+    if not agent.store_media:
+        run_response.images = None
+        run_response.videos = None
+        run_response.audio = None
+        run_response.files = None
 
     # Stop the timer for the Run duration
     if run_response.metrics:
@@ -4437,6 +4467,12 @@ async def acleanup_and_store(
 
     # Save session to memory
     await _session.asave_session(agent, session=session)
+
+    # Restore output media artifacts so the caller can access them
+    run_response.images = saved_images
+    run_response.videos = saved_videos
+    run_response.audio = saved_audio
+    run_response.files = saved_files
 
 
 # ---------------------------------------------------------------------------
