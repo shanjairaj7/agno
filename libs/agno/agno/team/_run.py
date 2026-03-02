@@ -367,8 +367,8 @@ def _run_tasks(
 
         # === Post-loop ===
 
-        # Store media if enabled
-        if team.store_media and model_response is not None:
+        # Always add media to run_response for caller availability
+        if model_response is not None:
             store_media_util(run_response, model_response)
 
         # Convert response to structured format
@@ -1136,9 +1136,8 @@ def _run(
                         team, run_response=run_response, session=session, run_context=run_context
                     )
 
-                # 8. Store media if enabled
-                if team.store_media:
-                    store_media_util(run_response, model_response)
+                # 8. Always add media to run_response for caller availability
+                store_media_util(run_response, model_response)
 
                 # 9. Convert response to structured format
                 _convert_response_to_structured_format(team, run_response=run_response, run_context=run_context)
@@ -2127,8 +2126,8 @@ async def _arun_tasks(
 
         # === Post-loop ===
 
-        # Store media if enabled
-        if team.store_media and model_response is not None:
+        # Always add media to run_response for caller availability
+        if model_response is not None:
             store_media_util(run_response, model_response)
 
         # Convert response to structured format
@@ -2955,9 +2954,8 @@ async def _arun(
                         team, run_response=run_response, session=team_session, run_context=run_context
                     )
 
-                # 8. Store media if enabled
-                if team.store_media:
-                    store_media_util(run_response, model_response)
+                # 8. Always add media to run_response for caller availability
+                store_media_util(run_response, model_response)
 
                 # 9. Convert response to structured format
                 _convert_response_to_structured_format(team, run_response=run_response, run_context=run_context)
@@ -3885,10 +3883,23 @@ def _cleanup_and_store(
     session: TeamSession,
     run_context: Optional[RunContext] = None,
 ) -> None:
-    #  Scrub the stored run based on storage flags
     from agno.team._session import update_session_metrics
 
+    # Save output media before scrubbing so they remain available to the caller
+    saved_images = run_response.images
+    saved_videos = run_response.videos
+    saved_audio = run_response.audio
+    saved_files = run_response.files
+
+    # Scrub the stored run based on storage flags
     scrub_run_output_for_storage(team, run_response)
+
+    # Also scrub output media artifacts when store_media is disabled
+    if not team.store_media:
+        run_response.images = None
+        run_response.videos = None
+        run_response.audio = None
+        run_response.files = None
 
     # Stop the timer for the Run duration
     if run_response.metrics:
@@ -3914,6 +3925,12 @@ def _cleanup_and_store(
     # Save session to memory
     team.save_session(session=session)
 
+    # Restore output media so the caller can access them
+    run_response.images = saved_images
+    run_response.videos = saved_videos
+    run_response.audio = saved_audio
+    run_response.files = saved_files
+
 
 async def _acleanup_and_store(
     team: "Team",
@@ -3921,10 +3938,23 @@ async def _acleanup_and_store(
     session: TeamSession,
     run_context: Optional[RunContext] = None,
 ) -> None:
-    #  Scrub the stored run based on storage flags
     from agno.team._session import update_session_metrics
 
+    # Save output media before scrubbing so they remain available to the caller
+    saved_images = run_response.images
+    saved_videos = run_response.videos
+    saved_audio = run_response.audio
+    saved_files = run_response.files
+
+    # Scrub the stored run based on storage flags
     scrub_run_output_for_storage(team, run_response)
+
+    # Also scrub output media artifacts when store_media is disabled
+    if not team.store_media:
+        run_response.images = None
+        run_response.videos = None
+        run_response.audio = None
+        run_response.files = None
 
     # Stop the timer for the Run duration
     if run_response.metrics:
@@ -3949,6 +3979,12 @@ async def _acleanup_and_store(
 
     # Save session to memory
     await team.asave_session(session=session)
+
+    # Restore output media so the caller can access them
+    run_response.images = saved_images
+    run_response.videos = saved_videos
+    run_response.audio = saved_audio
+    run_response.files = saved_files
 
 
 def scrub_run_output_for_storage(team: "Team", run_response: TeamRunOutput) -> bool:
@@ -4924,9 +4960,8 @@ def _continue_run(
                 # Convert to structured format
                 _convert_response_to_structured_format(team, run_response=run_response, run_context=run_context)
 
-                # Store media
-                if team.store_media:
-                    store_media_util(run_response, model_response)
+                # Always add media to run_response for caller availability
+                store_media_util(run_response, model_response)
 
                 # Execute post-hooks
                 if team.post_hooks is not None:
@@ -5577,8 +5612,7 @@ async def _acontinue_run(
 
                     _convert_response_to_structured_format(team, run_response=run_response, run_context=run_context)
 
-                    if team.store_media:
-                        store_media_util(run_response, model_response)
+                    store_media_util(run_response, model_response)
 
                 elif member_results:
                     # Member-only: re-run team with results
