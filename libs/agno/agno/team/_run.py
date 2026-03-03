@@ -3885,51 +3885,43 @@ def _cleanup_and_store(
 ) -> None:
     from agno.team._session import update_session_metrics
 
-    # Save output media before scrubbing so they remain available to the caller
+    # Save output media before scrubbing so they remain available to the caller.
+    # store_media=False only prevents persistence, not in-run availability.
     saved_images = run_response.images
     saved_videos = run_response.videos
     saved_audio = run_response.audio
     saved_files = run_response.files
 
-    # Scrub the stored run based on storage flags
-    scrub_run_output_for_storage(team, run_response)
+    try:
+        scrub_run_output_for_storage(team, run_response)
 
-    # Also scrub output media artifacts when store_media is disabled
-    if not team.store_media:
-        run_response.images = None
-        run_response.videos = None
-        run_response.audio = None
-        run_response.files = None
+        if not team.store_media:
+            run_response.images = None
+            run_response.videos = None
+            run_response.audio = None
+            run_response.files = None
 
-    # Stop the timer for the Run duration
-    if run_response.metrics:
-        run_response.metrics.stop_timer()
+        if run_response.metrics:
+            run_response.metrics.stop_timer()
 
-    # Update run_response.session_state before saving
-    if run_context is not None and run_context.session_state is not None:
-        run_response.session_state = run_context.session_state
+        if run_context is not None and run_context.session_state is not None:
+            run_response.session_state = run_context.session_state
 
-    # Add RunOutput to Team Session
-    session.upsert_run(run_response=run_response)
+        session.upsert_run(run_response=run_response)
+        update_session_metrics(team, session=session, run_response=run_response)
 
-    # Calculate session metrics
-    update_session_metrics(team, session=session, run_response=run_response)
+        if run_context is not None and run_context.session_state is not None:
+            if session.session_data is not None:
+                session.session_data["session_state"] = run_context.session_state
+            else:
+                session.session_data = {"session_state": run_context.session_state}
 
-    # Update session state before saving the session
-    if run_context is not None and run_context.session_state is not None:
-        if session.session_data is not None:
-            session.session_data["session_state"] = run_context.session_state
-        else:
-            session.session_data = {"session_state": run_context.session_state}
-
-    # Save session to memory
-    team.save_session(session=session)
-
-    # Restore output media so the caller can access them
-    run_response.images = saved_images
-    run_response.videos = saved_videos
-    run_response.audio = saved_audio
-    run_response.files = saved_files
+        team.save_session(session=session)
+    finally:
+        run_response.images = saved_images
+        run_response.videos = saved_videos
+        run_response.audio = saved_audio
+        run_response.files = saved_files
 
 
 async def _acleanup_and_store(
@@ -3940,51 +3932,41 @@ async def _acleanup_and_store(
 ) -> None:
     from agno.team._session import update_session_metrics
 
-    # Save output media before scrubbing so they remain available to the caller
     saved_images = run_response.images
     saved_videos = run_response.videos
     saved_audio = run_response.audio
     saved_files = run_response.files
 
-    # Scrub the stored run based on storage flags
-    scrub_run_output_for_storage(team, run_response)
+    try:
+        scrub_run_output_for_storage(team, run_response)
 
-    # Also scrub output media artifacts when store_media is disabled
-    if not team.store_media:
-        run_response.images = None
-        run_response.videos = None
-        run_response.audio = None
-        run_response.files = None
+        if not team.store_media:
+            run_response.images = None
+            run_response.videos = None
+            run_response.audio = None
+            run_response.files = None
 
-    # Stop the timer for the Run duration
-    if run_response.metrics:
-        run_response.metrics.stop_timer()
+        if run_response.metrics:
+            run_response.metrics.stop_timer()
 
-    # Update run_response.session_state before saving
-    if run_context is not None and run_context.session_state is not None:
-        run_response.session_state = run_context.session_state
+        if run_context is not None and run_context.session_state is not None:
+            run_response.session_state = run_context.session_state
 
-    # Add RunOutput to Team Session
-    session.upsert_run(run_response=run_response)
+        session.upsert_run(run_response=run_response)
+        update_session_metrics(team, session=session, run_response=run_response)
 
-    # Calculate session metrics
-    update_session_metrics(team, session=session, run_response=run_response)
+        if run_context is not None and run_context.session_state is not None:
+            if session.session_data is not None:
+                session.session_data["session_state"] = run_context.session_state
+            else:
+                session.session_data = {"session_state": run_context.session_state}
 
-    # Update session state before saving the session
-    if run_context is not None and run_context.session_state is not None:
-        if session.session_data is not None:
-            session.session_data["session_state"] = run_context.session_state
-        else:
-            session.session_data = {"session_state": run_context.session_state}
-
-    # Save session to memory
-    await team.asave_session(session=session)
-
-    # Restore output media so the caller can access them
-    run_response.images = saved_images
-    run_response.videos = saved_videos
-    run_response.audio = saved_audio
-    run_response.files = saved_files
+        await team.asave_session(session=session)
+    finally:
+        run_response.images = saved_images
+        run_response.videos = saved_videos
+        run_response.audio = saved_audio
+        run_response.files = saved_files
 
 
 def scrub_run_output_for_storage(team: "Team", run_response: TeamRunOutput) -> bool:
